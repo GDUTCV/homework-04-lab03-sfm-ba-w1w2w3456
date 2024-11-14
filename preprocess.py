@@ -118,7 +118,10 @@ def detect_keypoints(image_file: os.path):
     """ YOUR CODE HERE:
     Detect keypoints using cv2.SIFT_create() and sift.detectAndCompute
     """
-    
+
+    image = cv2.imread(image_file)
+    sift = cv2.SIFT_create() # 创建 SIFT (尺度不变特征变换) 对象
+    keypoints, descriptors = sift.detectAndCompute(image, None) # 检测图像中的关键点并计算描述符
 
 
     """ END YOUR CODE HERE. """
@@ -168,6 +171,13 @@ def create_feature_matches(image_file1: os.path, image_file2: os.path, lowe_rati
     2. Filter the feature matches using the Lowe ratio test.
     """
     
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(descriptors1, descriptors2, 2) # 使用 KNN 匹配器进行描述符匹配
+
+    # 应用比率测试 (Ratio Test) 以过滤匹配
+    for m, n in matches:
+        if m.distance < lowe_ratio * n.distance:
+            good_matches.append([m])
 
 
     """ END YOUR CODE HERE. """
@@ -242,8 +252,10 @@ def create_ransac_matches(image_file1: os.path, image_file2: os.path,
     Perform goemetric verification by finding the essential matrix between keypoints in the first image and keypoints in
     the second image using cv2.findEssentialMatrix(..., method=cv2.RANSAC, threshold=ransac_threshold, ...)
     """
-    
 
+    # 使用 RANSAC 方法计算本质矩阵 (Essential Matrix)
+    essential_mtx, is_inlier = cv2.findEssentialMat(points1=points1, points2=points2, cameraMatrix=camera_intrinsics,
+                                                    method=cv2.RANSAC, threshold=ransac_threshold)
 
     """ END YOUR CODE HERE """
 
@@ -278,7 +290,24 @@ def create_scene_graph(image_files: list, min_num_inliers: int = 40):
     Add edges to <graph> if the minimum number of geometrically verified inliers between images is at least  
     <min_num_inliers> 
     """
-    
+
+    # 遍历所有图像 ID
+    for i in range(len(image_ids)):
+        id_1 = image_ids[i] # 获取当前图像的 ID
+
+        # 遍历当前图像之后的所有图像 ID
+        for j in range(i+1, len(image_ids)):
+            id_2 = image_ids[j] # 获取下一个图像的 ID
+            match_id = '{}_{}'.format(id_1, id_2)
+            match_save_file = os.path.join(RANSAC_MATCH_DIR, match_id + '.npy')
+
+            # 检查匹配文件是否存在
+            if os.path.exists(match_save_file):
+                inliers = np.load(match_save_file) # 加载存在的匹配结果（内点）
+                
+                # 如果内点数量超过最小内点数量，则在图中添加边
+                if len(inliers) > min_num_inliers:
+                    graph.add_edge(i, j) # 在图中添加从图像 i 到图像 j 的边
 
     
     """ END YOUR CODE HERE """
